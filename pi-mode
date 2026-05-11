@@ -14,14 +14,22 @@ USAGE
   pi-mode --agency <val> --quality <val> --scope <val> [modifiers] [-- pi-flags]
 
 PRESETS
-  create       autonomous  architect   unrestricted   Build from scratch
-  extend       autonomous  pragmatic   adjacent       Extend existing projects
-  safe         collaborative minimal   narrow         Surgical production changes
-  refactor     autonomous  pragmatic   unrestricted   Restructure codebase
-  explore      collaborative architect  narrow         Read-only exploration (auto --readonly)
-  debug        collaborative pragmatic  narrow         Investigation-first debugging
-  methodical   surgical    architect   narrow         Step-by-step precision
-  none         —           —           —              No behavioral instructions
+EOF
+    #  Preset(12)  Agency(14)  Quality(11)  Scope(14)  Use
+    printf '  %-12s %-14s %-11s %-14s %s\n' \
+        PRESET AGENCY QUALITY SCOPE USE
+    printf '  %-12s %-14s %-11s %-14s %s\n' \
+        ------ ------ ------- ----- ---
+    printf '  %-12s %-14s %-11s %-14s %s\n' \
+        create    autonomous   architect   unrestricted  "Build from scratch" \
+        extend    autonomous   pragmatic   adjacent      "Extend existing projects" \
+        safe      collaborative minimal    narrow        "Surgical production changes" \
+        refactor  autonomous   pragmatic   unrestricted  "Restructure codebase" \
+        explore   collaborative architect   narrow        "Read-only exploration (auto --readonly)" \
+        debug     collaborative pragmatic   narrow        "Investigation-first debugging" \
+        methodical surgical     architect   narrow        "Step-by-step precision" \
+        none      -             -            -             "No behavioral instructions"
+    cat <<'EOF'
 
 AXIS OVERRIDES
   --agency     autonomous | collaborative | surgical
