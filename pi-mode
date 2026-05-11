@@ -1,0 +1,328 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+VERSION="0.1.0"
+PI_MODE_DIR="${PI_MODE_DIR:-$HOME/.pi/agent/pi-mode}"
+
+# ── Help ──────────────────────────────────────────────────────
+usage() {
+    cat <<'EOF'
+pi-mode — behavioral launcher for pi coding agent
+
+USAGE
+  pi-mode <preset|none> [axis-overrides] [modifiers] [-- pi-flags]
+  pi-mode --agency <val> --quality <val> --scope <val> [modifiers] [-- pi-flags]
+
+PRESETS
+  create       autonomous  architect   unrestricted   Build from scratch
+  extend       autonomous  pragmatic   adjacent       Extend existing projects
+  safe         collaborative minimal   narrow         Surgical production changes
+  refactor     autonomous  pragmatic   unrestricted   Restructure codebase
+  explore      collaborative architect  narrow         Read-only exploration (auto --readonly)
+  debug        collaborative pragmatic  narrow         Investigation-first debugging
+  methodical   surgical    architect   narrow         Step-by-step precision
+  none         —           —           —              No behavioral instructions
+
+AXIS OVERRIDES
+  --agency     autonomous | collaborative | surgical
+  --quality    architect | pragmatic | minimal
+  --scope      unrestricted | adjacent | narrow
+
+MODIFIERS
+  --readonly           No file modifications
+  --context-pacing     Pause at boundaries, document remaining work
+  --bold               Confident, idiomatic code
+  --tdd                Test-driven development workflow
+  --modifier <name>    Load modifier from PI_MODE_DIR/modifiers/<name>.md
+  --modifier-file <p>  Load modifier from arbitrary path
+
+FLAGS
+  --dry-run            Print assembled prompt without launching pi
+  --help, -h           Show this help
+  --version            Show version
+
+EXAMPLES
+  pi-mode create "Build a REST API for todos"
+  pi-mode safe --scope adjacent "Fix the login bug"
+  pi-mode create --bold --tdd "Add user authentication"
+  pi-mode explore -- --model sonnet --thinking high
+
+CONFIG
+  Default prompt directory: ~/.pi/agent/pi-mode/
+  Override with PI_MODE_DIR environment variable.
+EOF
+    exit 0
+}
+
+# ── Version ───────────────────────────────────────────────────
+version() {
+    echo "pi-mode $VERSION"
+    exit 0
+}
+
+# ── Preset definitions ────────────────────────────────────────
+declare -A PRESET_AGENCY PRESET_QUALITY PRESET_SCOPE PRESET_MODIFIERS
+
+PRESET_AGENCY[create]=autonomous
+PRESET_QUALITY[create]=architect
+PRESET_SCOPE[create]=unrestricted
+PRESET_MODIFIERS[create]=""
+
+PRESET_AGENCY[extend]=autonomous
+PRESET_QUALITY[extend]=pragmatic
+PRESET_SCOPE[extend]=adjacent
+PRESET_MODIFIERS[extend]=""
+
+PRESET_AGENCY[safe]=collaborative
+PRESET_QUALITY[safe]=minimal
+PRESET_SCOPE[safe]=narrow
+PRESET_MODIFIERS[safe]=""
+
+PRESET_AGENCY[refactor]=autonomous
+PRESET_QUALITY[refactor]=pragmatic
+PRESET_SCOPE[refactor]=unrestricted
+PRESET_MODIFIERS[refactor]=""
+
+PRESET_AGENCY[explore]=collaborative
+PRESET_QUALITY[explore]=architect
+PRESET_SCOPE[explore]=narrow
+PRESET_MODIFIERS[explore]="readonly"
+
+PRESET_AGENCY[debug]=collaborative
+PRESET_QUALITY[debug]=pragmatic
+PRESET_SCOPE[debug]=narrow
+PRESET_MODIFIERS[debug]=""
+
+PRESET_AGENCY[methodical]=surgical
+PRESET_QUALITY[methodical]=architect
+PRESET_SCOPE[methodical]=narrow
+PRESET_MODIFIERS[methodical]=""
+
+# Valid axis values for validation
+VALID_AGENCY="autonomous collaborative surgical"
+VALID_QUALITY="architect pragmatic minimal"
+VALID_SCOPE="unrestricted adjacent narrow"
+
+# ── Parse CLI args ────────────────────────────────────────────
+
+# If no args, show usage
+if [ $# -eq 0 ]; then
+    usage
+fi
+
+# Check for standalone --help, -h, --version
+for arg in "$@"; do
+    case "$arg" in
+        --help|-h) usage ;;
+        --version)  version ;;
+    esac
+done
+
+AGENCY=""
+QUALITY=""
+SCOPE=""
+MODIFIER_LIST=""
+DRY_RUN=false
+PRESET_NAME=""
+
+# Check if first arg is a preset name
+FIRST_ARG="$1"
+case "$FIRST_ARG" in
+    create|extend|safe|refactor|explore|debug|methodical|none)
+        PRESET_NAME="$FIRST_ARG"
+        shift
+        ;;
+esac
+
+# If a preset was specified, load its defaults
+if [ -n "$PRESET_NAME" ] && [ "$PRESET_NAME" != "none" ]; then
+    AGENCY="${PRESET_AGENCY[$PRESET_NAME]}"
+    QUALITY="${PRESET_QUALITY[$PRESET_NAME]}"
+    SCOPE="${PRESET_SCOPE[$PRESET_NAME]}"
+    MODIFIER_LIST="${PRESET_MODIFIERS[$PRESET_NAME]}"
+fi
+
+# Parse remaining flags (stop at --)
+PI_ARGS=()
+PASSTHROUGH=false
+
+while [ $# -gt 0 ]; do
+    if $PASSTHROUGH; then
+        PI_ARGS+=("$1")
+        shift
+        continue
+    fi
+    case "$1" in
+        --)
+            PASSTHROUGH=true
+            shift
+            ;;
+        --agency)
+            shift
+            if [ $# -eq 0 ]; then
+                echo "Error: --agency requires a value" >&2
+                exit 1
+            fi
+            AGENCY="$1"
+            shift
+            ;;
+        --quality)
+            shift
+            if [ $# -eq 0 ]; then
+                echo "Error: --quality requires a value" >&2
+                exit 1
+            fi
+            QUALITY="$1"
+            shift
+            ;;
+        --scope)
+            shift
+            if [ $# -eq 0 ]; then
+                echo "Error: --scope requires a value" >&2
+                exit 1
+            fi
+            SCOPE="$1"
+            shift
+            ;;
+        --readonly)
+            MODIFIER_LIST="$MODIFIER_LIST readonly"
+            shift
+            ;;
+        --context-pacing)
+            MODIFIER_LIST="$MODIFIER_LIST context-pacing"
+            shift
+            ;;
+        --bold)
+            MODIFIER_LIST="$MODIFIER_LIST bold"
+            shift
+            ;;
+        --tdd)
+            MODIFIER_LIST="$MODIFIER_LIST tdd"
+            shift
+            ;;
+        --modifier)
+            shift
+            if [ $# -eq 0 ]; then
+                echo "Error: --modifier requires a name" >&2
+                exit 1
+            fi
+            MODIFIER_LIST="$MODIFIER_LIST mod:$1"
+            shift
+            ;;
+        --modifier-file)
+            shift
+            if [ $# -eq 0 ]; then
+                echo "Error: --modifier-file requires a path" >&2
+                exit 1
+            fi
+            MODIFIER_LIST="$MODIFIER_LIST file:$1"
+            shift
+            ;;
+        --dry-run)
+            DRY_RUN=true
+            shift
+            ;;
+        --help|-h)
+            usage
+            ;;
+        *)
+            # Unrecognized flag: pass through to pi
+            PI_ARGS+=("$1")
+            shift
+            ;;
+    esac
+done
+
+# ── Validate axis values ──────────────────────────────────────
+
+if [ "$PRESET_NAME" != "none" ]; then
+    # Validate agency
+    if [ -n "$AGENCY" ]; then
+        if ! echo " $VALID_AGENCY " | grep -q " $AGENCY "; then
+            echo "Error: Invalid --agency value: $AGENCY. Must be one of: $VALID_AGENCY" >&2
+            exit 1
+        fi
+    else
+        AGENCY="collaborative"
+    fi
+
+    # Validate quality
+    if [ -n "$QUALITY" ]; then
+        if ! echo " $VALID_QUALITY " | grep -q " $QUALITY "; then
+            echo "Error: Invalid --quality value: $QUALITY. Must be one of: $VALID_QUALITY" >&2
+            exit 1
+        fi
+    else
+        QUALITY="pragmatic"
+    fi
+
+    # Validate scope
+    if [ -n "$SCOPE" ]; then
+        if ! echo " $VALID_SCOPE " | grep -q " $SCOPE "; then
+            echo "Error: Invalid --scope value: $SCOPE. Must be one of: $VALID_SCOPE" >&2
+            exit 1
+        fi
+    else
+        SCOPE="adjacent"
+    fi
+fi
+
+# ── Helper: read a fragment file, append to ASSEMBLED ─────────
+
+read_fragment() {
+    local label="$1"
+    local path="$2"
+    if [ ! -f "$path" ]; then
+        echo "Error: Missing prompt fragment: $path" >&2
+        exit 1
+    fi
+    ASSEMBLED="${ASSEMBLED}
+$(cat "$path")"
+}
+
+# ── Read fragments and assemble prompt ────────────────────────
+
+ASSEMBLED=""
+
+if [ "$PRESET_NAME" != "none" ]; then
+    ASSEMBLED="## Behavioral Instructions"
+
+    # Axes
+    read_fragment "agency"  "$PI_MODE_DIR/agency/$AGENCY.md"
+    read_fragment "quality" "$PI_MODE_DIR/quality/$QUALITY.md"
+    read_fragment "scope"   "$PI_MODE_DIR/scope/$SCOPE.md"
+
+    # Modifiers
+    for mod in $MODIFIER_LIST; do
+        case "$mod" in
+            mod:*)
+                MODNAME="${mod#mod:}"
+                read_fragment "modifier:$MODNAME" "$PI_MODE_DIR/modifiers/$MODNAME.md"
+                ;;
+            file:*)
+                MODPATH="${mod#file:}"
+                read_fragment "modifier-file" "$MODPATH"
+                ;;
+            *)
+                read_fragment "modifier:$mod" "$PI_MODE_DIR/modifiers/$mod.md"
+                ;;
+        esac
+    done
+
+    ASSEMBLED="${ASSEMBLED}
+
+These behavioral instructions take priority over default guidance."
+fi
+
+# ── Launch or dry-run ─────────────────────────────────────────
+
+if [ "$DRY_RUN" = "true" ]; then
+    echo "$ASSEMBLED"
+    exit 0
+fi
+
+if [ -n "$ASSEMBLED" ]; then
+    exec pi --append-system-prompt "$ASSEMBLED" ${PI_ARGS:+"${PI_ARGS[@]}"}
+else
+    exec pi ${PI_ARGS:+"${PI_ARGS[@]}"}
+fi
