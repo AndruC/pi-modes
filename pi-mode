@@ -69,42 +69,25 @@ version() {
 }
 
 # ── Preset definitions ────────────────────────────────────────
-declare -A PRESET_AGENCY PRESET_QUALITY PRESET_SCOPE PRESET_MODIFIERS
-
-PRESET_AGENCY[create]=autonomous
-PRESET_QUALITY[create]=architect
-PRESET_SCOPE[create]=unrestricted
-PRESET_MODIFIERS[create]=""
-
-PRESET_AGENCY[extend]=autonomous
-PRESET_QUALITY[extend]=pragmatic
-PRESET_SCOPE[extend]=adjacent
-PRESET_MODIFIERS[extend]=""
-
-PRESET_AGENCY[safe]=collaborative
-PRESET_QUALITY[safe]=minimal
-PRESET_SCOPE[safe]=narrow
-PRESET_MODIFIERS[safe]=""
-
-PRESET_AGENCY[refactor]=autonomous
-PRESET_QUALITY[refactor]=pragmatic
-PRESET_SCOPE[refactor]=unrestricted
-PRESET_MODIFIERS[refactor]=""
-
-PRESET_AGENCY[explore]=collaborative
-PRESET_QUALITY[explore]=architect
-PRESET_SCOPE[explore]=narrow
-PRESET_MODIFIERS[explore]="readonly"
-
-PRESET_AGENCY[debug]=collaborative
-PRESET_QUALITY[debug]=pragmatic
-PRESET_SCOPE[debug]=narrow
-PRESET_MODIFIERS[debug]=""
-
-PRESET_AGENCY[methodical]=surgical
-PRESET_QUALITY[methodical]=architect
-PRESET_SCOPE[methodical]=narrow
-PRESET_MODIFIERS[methodical]=""
+preset_axis() {
+    # $1=preset, $2=axis (agency|quality|scope|modifiers)
+    case "$1" in
+        create) case "$2" in
+            agency) echo "autonomous";; quality) echo "architect";; scope) echo "unrestricted";; modifiers) echo "";; esac ;;
+        extend) case "$2" in
+            agency) echo "autonomous";; quality) echo "pragmatic";; scope) echo "adjacent";; modifiers) echo "";; esac ;;
+        safe) case "$2" in
+            agency) echo "collaborative";; quality) echo "minimal";; scope) echo "narrow";; modifiers) echo "";; esac ;;
+        refactor) case "$2" in
+            agency) echo "autonomous";; quality) echo "pragmatic";; scope) echo "unrestricted";; modifiers) echo "";; esac ;;
+        explore) case "$2" in
+            agency) echo "collaborative";; quality) echo "architect";; scope) echo "narrow";; modifiers) echo "readonly";; esac ;;
+        debug) case "$2" in
+            agency) echo "collaborative";; quality) echo "pragmatic";; scope) echo "narrow";; modifiers) echo "";; esac ;;
+        methodical) case "$2" in
+            agency) echo "surgical";; quality) echo "architect";; scope) echo "narrow";; modifiers) echo "";; esac ;;
+    esac
+}
 
 # Valid axis values for validation
 VALID_AGENCY="autonomous collaborative surgical"
@@ -144,10 +127,10 @@ esac
 
 # If a preset was specified, load its defaults
 if [ -n "$PRESET_NAME" ] && [ "$PRESET_NAME" != "none" ]; then
-    AGENCY="${PRESET_AGENCY[$PRESET_NAME]}"
-    QUALITY="${PRESET_QUALITY[$PRESET_NAME]}"
-    SCOPE="${PRESET_SCOPE[$PRESET_NAME]}"
-    MODIFIER_LIST="${PRESET_MODIFIERS[$PRESET_NAME]}"
+    AGENCY="$(preset_axis "$PRESET_NAME" agency)"
+    QUALITY="$(preset_axis "$PRESET_NAME" quality)"
+    SCOPE="$(preset_axis "$PRESET_NAME" scope)"
+    MODIFIER_LIST="$(preset_axis "$PRESET_NAME" modifiers)"
 fi
 
 # Parse remaining flags (stop at --)
@@ -330,7 +313,7 @@ if [ "$DRY_RUN" = "true" ]; then
 fi
 
 if [ -n "$ASSEMBLED" ]; then
-    exec pi --append-system-prompt "$ASSEMBLED" ${PI_ARGS:+"${PI_ARGS[@]}"}
+    exec pi --append-system-prompt "$ASSEMBLED" "${PI_ARGS[@]}"
 else
-    exec pi ${PI_ARGS:+"${PI_ARGS[@]}"}
+    exec pi "${PI_ARGS[@]}"
 fi
