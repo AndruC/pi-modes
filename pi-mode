@@ -313,7 +313,7 @@ if [ "$DRY_RUN" = "true" ]; then
 fi
 
 if [ -n "$ASSEMBLED" ]; then
-    exec pi --append-system-prompt "$ASSEMBLED" "${PI_ARGS[@]}"
+    exec pi --append-system-prompt "$ASSEMBLED" ${PI_ARGS[@]+"${PI_ARGS[@]}"}
 else
-    exec pi "${PI_ARGS[@]}"
+    exec pi ${PI_ARGS[@]+"${PI_ARGS[@]}"}
 fi
