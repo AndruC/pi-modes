@@ -1,0 +1,12 @@
+# macOS
+.DS_Store
+
+# Editors
+*.swp
+*.swo
+*~
+
+# Vim
+*.vim
+
+# No sensitive files to worry about — the project is a bash script and markdown
